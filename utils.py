@@ -35,3 +35,20 @@ class ValDatasetFromFolder(Dataset):
 
     def __len__(self):
         return len(self.hr_names)
+
+
+def display_transform():
+    return transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Resize(400),
+        transforms.CenterCrop(400),
+        transforms.ToTensor()
+    ])
+
+
+def scale_lr2hr(hr_tile):
+    return transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.Resize(hr_tile, interpolation=Image.BICUBIC),
+        transforms.ToTensor()
+        ])
