@@ -22,3 +22,5 @@ Model weights, validation outputs and running statistics will be saved to `resul
 2. It seems working good on small dataset (see `results/SR4/` with only 500 images), but get completely trash on large dataset (see `results/SR4_15k/`). This might have something to do with the above loss function issues, but we are still not sure about that.
 
 3. I got cuda `Out of Memory` errors when training with `batch_size > 1` (RTX 2060, 6GB). When running with `batch_size = 1`, each epoch takes ~2 min on `temp_data/`. That is approximately 250 images per minute.
+
+4. (Outside of SRGAN) We also need a function to revert `chip_image_only()` to get the original size of them. This should be doable unless there is some intractable randomness in that function.
