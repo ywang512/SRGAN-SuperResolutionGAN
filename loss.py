@@ -36,7 +36,7 @@ class SRGAN_Loss(nn.Module):
             content_loss += self.mse_loss(out_images, target_images)
         ### Adversarial Loss
         if self.adversarial_loss == "bce":
-            adversarial_loss = self.bce_loss(out_labels, torch.ones(batch_size))
+            adversarial_loss = self.bce_loss(out_labels, torch.ones_like(out_labels))
         elif self.adversarial_loss == "L1":
             adversarial_loss = torch.mean(1 - out_labels)
         ### TV Loss
