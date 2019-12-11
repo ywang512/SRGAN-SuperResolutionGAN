@@ -2,6 +2,7 @@ import os
 from math import log10
 import numpy as np
 import pandas as pd
+import torch
 import torch.optim as optim
 import torch.utils.data
 import torchvision.utils as utils
@@ -16,6 +17,7 @@ from utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transfor
 
 
 ### global parameters
+RANDOM_SEED = 1
 SCALE_FACTOR = 4
 TRAIN_HR_DIR = "../dataset_1/train_images_hr_15k/"
 TRAIN_LR_DIR = "../dataset_1/train_images_lr_15k/"
@@ -24,8 +26,8 @@ VAL_LR_DIR = "../dataset_1/val_images_lr_15k/"
 RESULTS_DIR = "results/" + "SR" + str(SCALE_FACTOR) + "_15k" + "/"
 # network parameters
 CONTENT_LOSS = "both"  # try "both" in future test
-ADVERSARIAL_LOSS = "bce"
-TV_LOSS_ON = False
+ADVERSARIAL_LOSS = "L1"
+TV_LOSS_ON = True
 # training parameters
 BATCH_SIZE = 1
 NUM_EPOCHS = 10
@@ -34,7 +36,13 @@ NUM_WORKERS = 0  # workers for loading data
 VAL_IMAGE_RAND_NUM = 10
 VAL_IMAGE_INDEX = ["96_100.tif", "543_120.tif", "367_116.tif", "1038_81.tif", "1116_47.tif", "1402_56.tif", "2351_5.tif", "1402_12.tif", "205_0.tif", "359_25.tif"]
 ### overwrite default global settings
-RUN_CASE = 0  # default to be None
+# RUN_CASE = None  # default
+# RUN_CASE = 0  # ~500 sample images
+# RUN_CASE = 1  # 5000 images
+# RUN_CASE = 2  # 1000 512 * 512 images
+RUN_CASE = 3  # 6000 selected images
+
+
 if RUN_CASE == 0:
     NUM_EPOCHS = 50
     TRAIN_HR_DIR = "temp_data/train_images_hr/"
@@ -43,6 +51,35 @@ if RUN_CASE == 0:
     VAL_LR_DIR = "temp_data/val_images_lr/"
     RESULTS_DIR = "results/" + "SR" + str(SCALE_FACTOR) + "/"
     VAL_IMAGE_RAND_NUM = 5
+elif RUN_CASE == 1:
+    TRAIN_HR_DIR = "../dataset_1/train_images_hr_5k/"
+    TRAIN_LR_DIR = "../dataset_1/train_images_lr_5k/"
+    VAL_HR_DIR = "../dataset_1/val_images_hr_5k/"
+    VAL_LR_DIR = "../dataset_1/val_images_lr_5k/"
+    RESULTS_DIR = "results/" + "SR" + str(SCALE_FACTOR) + "_5k" + "/"
+    VAL_IMAGE_RAND_NUM = 20
+    VAL_IMAGE_INDEX = []
+elif RUN_CASE == 2:
+    TRAIN_HR_DIR = "../dataset_1/train_images_hr_512_1k/"
+    TRAIN_LR_DIR = "../dataset_1/train_images_lr_512_1k/"
+    VAL_HR_DIR = "../dataset_1/val_images_hr_512_1k/"
+    VAL_LR_DIR = "../dataset_1/val_images_lr_512_1k/"
+    RESULTS_DIR = "results/" + "SR" + str(SCALE_FACTOR) + "_512_1k" + "/"
+    VAL_IMAGE_RAND_NUM = 20
+    VAL_IMAGE_INDEX = []
+elif RUN_CASE == 3:
+    NUM_EPOCHS = 50
+    TRAIN_HR_DIR = "../dataset_1/train_images_hr_selected/"
+    TRAIN_LR_DIR = "../dataset_1/train_images_lr_selected/"
+    VAL_HR_DIR = "../dataset_1/val_images_hr_selected/"
+    VAL_LR_DIR = "../dataset_1/val_images_lr_selected/"
+    RESULTS_DIR = "results/" + "SR" + str(SCALE_FACTOR) + "_selected" + "/"
+    VAL_IMAGE_RAND_NUM = 20
+    VAL_IMAGE_INDEX = []
+
+
+
+torch.manual_seed(RANDOM_SEED)
 
 
 train_dataset = TrainDatasetFromFolder(hr_dir=TRAIN_HR_DIR, lr_dir=TRAIN_LR_DIR)
@@ -52,8 +89,9 @@ val_loader = DataLoader(dataset=val_dataset, num_workers=NUM_WORKERS, batch_size
 
 netG = Generator(scale_factor=SCALE_FACTOR)
 print('# generator parameters:', sum(param.numel() for param in netG.parameters()))
-netD = Discriminator()
+netD = Discriminator(dense_choice=1)
 print('# discriminator parameters:', sum(param.numel() for param in netD.parameters()))
+
 
 generator_criterion = SRGAN_Loss(content_loss=CONTENT_LOSS, 
                                  adversarial_loss=ADVERSARIAL_LOSS, 
@@ -67,6 +105,11 @@ if torch.cuda.is_available():
     
 optimizerG = optim.Adam(netG.parameters())
 optimizerD = optim.Adam(netD.parameters())
+# optimizerG = optim.SGD(netG.parameters(), lr=0.005, momentum=0.9)
+# optimizerD = optim.SGD(netD.parameters(), lr=0.005, momentum=0.9)
+
+
+
 
 results = {'d_loss': [], 'g_loss': [], 'd_score': [], 'g_score': [], 'psnr': [], 'ssim': []}
 if not os.path.isdir(RESULTS_DIR):
@@ -77,7 +120,7 @@ if not os.path.isdir(out_path_val):
 out_path_net = RESULTS_DIR + "net_weights/"
 if not os.path.isdir(out_path_net):
     os.mkdir(out_path_net)
-val_image_rand = np.random.choice(np.arange(len(os.listdir(VAL_HR_DIR))), size=VAL_IMAGE_RAND_NUM, replace=False)
+val_image_rand = np.random.choice(np.arange(len(val_dataset)), size=VAL_IMAGE_RAND_NUM, replace=False)
 
 for epoch in range(1, NUM_EPOCHS + 1):
     train_bar = tqdm(train_loader)
@@ -106,7 +149,7 @@ for epoch in range(1, NUM_EPOCHS + 1):
         netD.zero_grad()
         real_out = netD(real_img)
         fake_out = netD(fake_img)
-        # d_loss = -fake_out.log().sum()  # paper d loss
+        # d_loss = -fake_out.log().sum()  # paper d loss ?
         d_loss = 1 - real_out.mean() + fake_out.mean()  # L1 loss
         # d_loss = bceloss(real_out, torch.ones_like(real_out)) + bceloss(fake_out, torch.zeros_like(fake_out))
         d_loss.backward(retain_graph=True)
@@ -119,8 +162,8 @@ for epoch in range(1, NUM_EPOCHS + 1):
         g_loss = generator_criterion(fake_out, fake_img, real_img)
         g_loss.backward()
 
-        # fake_img = netG(z)
-        # fake_out = netD(fake_img).mean()
+        fake_img = netG(z)
+        fake_out = netD(fake_img).mean()
 
         optimizerG.step()
 
@@ -153,6 +196,7 @@ for epoch in range(1, NUM_EPOCHS + 1):
             lr = val_lr
             hr = val_hr
             lr2hr = scale_lr2hr((256, 256))(lr.squeeze(0))
+            # lr2hr = scale_lr2hr((512, 512))(lr.squeeze(0))
             if torch.cuda.is_available():
                 lr = lr.cuda()
                 hr = hr.cuda()
