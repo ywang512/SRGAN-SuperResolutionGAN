@@ -14,13 +14,4 @@ Model weights, validation outputs and running statistics will be saved to `resul
 
 `SR4_15k` shows the result on ~15000 images with same settings as above.
 
-
-## Current issues and future steps
-
-1. `d_loss`, `d_score` and `g_score` are not being correctly optimized. We might need to test and modify the loss function.
-
-2. It seems working good on small dataset (see `results/SR4/` with only 500 images), but get completely trash on large dataset (see `results/SR4_15k/`). This might have something to do with the above loss function issues, but we are still not sure about that.
-
-3. I got cuda `Out of Memory` errors when training with `batch_size > 1` (RTX 2060, 6GB). When running with `batch_size = 1`, each epoch takes ~2 min on `temp_data/`. That is approximately 250 images per minute.
-
-4. (Outside of SRGAN) We also need a function to revert `chip_image_only()` to get the original size of them. This should be doable unless there is some intractable randomness in that function.
+`SR4_selected` shows the result on ~6000 selected images with same settings as above. That could be seen as a bench mark for now in our test.
